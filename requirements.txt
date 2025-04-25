@@ -2,3 +2,8 @@ streamlit==1.28.0
 PyPDF2==3.0.1
 nltk==3.8.1
 pandas==2.1.1
+pdfplumber==0.10.1
+pytesseract==0.3.10
+pdf2image==1.16.3
+Pillow==10.0.1
+jieba==0.42.1
