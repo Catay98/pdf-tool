@@ -1,0 +1,72 @@
+{% extends "layout.html" %}
+
+{% block title %}PDF知识点提炼结果{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/github.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">知识点提炼结果</h2>
+                <a href="/download" class="btn btn-primary">下载结果</a>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <h5>文件信息</h5>
+                    <p><strong>原始文件:</strong> {{ filename }}</p>
+                    <p><strong>处理时间:</strong> {{ timestamp }}</p>
+                    <p><strong>输出格式:</strong> {{ format }}</p>
+                </div>
+                
+                <div class="mb-3">
+                    <h5>提取的知识点</h5>
+                    <div class="highlight">
+                        {% if format == 'markdown' %}
+                            <div id="markdown-content" class="p-3">
+                                {{ content | safe }}
+                            </div>
+                        {% elif format == 'json' %}
+                            <pre><code class="language-json">{{ content }}</code></pre>
+                        {% else %}
+                            <pre>{{ content }}</pre>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="d-flex justify-content-between">
+                    <a href="/" class="btn btn-secondary">返回首页</a>
+                    <a href="/download" class="btn btn-success">下载结果</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked@4.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/highlight.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // 如果是Markdown格式，渲染Markdown内容
+        {% if format == 'markdown' %}
+            const markdownContent = document.getElementById('markdown-content');
+            if (markdownContent) {
+                const rawMarkdown = markdownContent.textContent;
+                markdownContent.innerHTML = marked.parse(rawMarkdown);
+            }
+        {% endif %}
+        
+        // 如果是JSON格式，高亮显示
+        {% if format == 'json' %}
+            document.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightElement(block);
+            });
+        {% endif %}
+    });
+</script>
+{% endblock %}

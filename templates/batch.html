@@ -1,0 +1,130 @@
+{% extends "layout.html" %}
+
+{% block title %}PDF知识点提炼工具 - 批量处理{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">批量处理PDF文件</h2>
+            </div>
+            <div class="card-body">
+                <form action="/batch" method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="files" class="form-label">选择多个PDF文件</label>
+                        <input type="file" class="form-control" id="files" name="files[]" accept=".pdf" multiple required>
+                        <div class="form-text">可以一次选择多个PDF文件（每个文件最大16MB）</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div id="selected-files" class="mt-2">
+                            <p class="text-muted">尚未选择文件</p>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="format" class="form-label">输出格式</label>
+                                <select class="form-select" id="format" name="format">
+                                    <option value="markdown" selected>Markdown</option>
+                                    <option value="json">JSON</option>
+                                    <option value="txt">纯文本</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="mode" class="form-label">提取模式</label>
+                                <select class="form-select" id="mode" name="mode">
+                                    <option value="auto" selected>自动模式</option>
+                                    <option value="keywords">关键词模式</option>
+                                    <option value="sentences">句子模式</option>
+                                    <option value="sections">章节模式</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="importance" class="form-label">重要性阈值</label>
+                                <input type="range" class="form-range" id="importance" name="importance" min="0" max="1" step="0.1" value="0.5" oninput="updateImportanceValue(this.value)">
+                                <div class="text-center" id="importance-value">0.5</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">上传并批量处理</button>
+                        <a href="/" class="btn btn-outline-secondary">返回单文件处理</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h3>批量处理说明</h3>
+            </div>
+            <div class="card-body">
+                <h4>批量处理功能</h4>
+                <p>批量处理功能允许您一次性处理多个PDF文件，使用相同的处理参数。</p>
+                
+                <h4>处理流程</h4>
+                <ol>
+                    <li>选择多个PDF文件（可以按住Ctrl键进行多选）</li>
+                    <li>设置所有文件共用的处理参数</li>
+                    <li>点击"上传并批量处理"按钮</li>
+                    <li>等待处理完成，查看结果列表</li>
+                    <li>可以单独下载每个处理结果</li>
+                </ol>
+                
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> 处理时间取决于PDF文件的数量、大小和复杂度，请耐心等待。
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function updateImportanceValue(val) {
+        document.getElementById('importance-value').textContent = val;
+    }
+    
+    // 显示已选择的文件列表
+    document.getElementById('files').addEventListener('change', function(e) {
+        const fileList = e.target.files;
+        const fileListContainer = document.getElementById('selected-files');
+        
+        if (fileList.length > 0) {
+            let html = '<p><strong>已选择 ' + fileList.length + ' 个文件:</strong></p>';
+            html += '<ul class="list-group">';
+            
+            for (let i = 0; i < fileList.length; i++) {
+                const file = fileList[i];
+                const fileSize = (file.size / 1024 / 1024).toFixed(2); // 转换为MB
+                
+                html += '<li class="list-group-item d-flex justify-content-between align-items-center">';
+                html += file.name;
+                html += '<span class="badge bg-primary rounded-pill">' + fileSize + ' MB</span>';
+                html += '</li>';
+            }
+            
+            html += '</ul>';
+            fileListContainer.innerHTML = html;
+        } else {
+            fileListContainer.innerHTML = '<p class="text-muted">尚未选择文件</p>';
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,103 @@
+{% extends "layout.html" %}
+
+{% block title %}PDF知识点提炼工具 - 首页{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">上传PDF提取知识点</h2>
+            </div>
+            <div class="card-body">
+                <form action="/upload" method="post" enctype="multipart/form-data">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="mb-3">
+                        <label for="file" class="form-label">选择PDF文件</label>
+                        <input type="file" class="form-control" id="file" name="file" accept=".pdf" required>
+                        <div class="form-text">请选择一个PDF文件（最大16MB）</div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="format" class="form-label">输出格式</label>
+                                <select class="form-select" id="format" name="format">
+                                    <option value="markdown" selected>Markdown</option>
+                                    <option value="json">JSON</option>
+                                    <option value="txt">纯文本</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="mode" class="form-label">提取模式</label>
+                                <select class="form-select" id="mode" name="mode">
+                                    <option value="auto" selected>自动模式</option>
+                                    <option value="keywords">关键词模式</option>
+                                    <option value="sentences">句子模式</option>
+                                    <option value="sections">章节模式</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="importance" class="form-label">重要性阈值</label>
+                                <input type="range" class="form-range" id="importance" name="importance" min="0" max="1" step="0.1" value="0.5" oninput="updateImportanceValue(this.value)">
+                                <div class="text-center" id="importance-value">0.5</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">上传并处理</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h3>使用说明</h3>
+            </div>
+            <div class="card-body">
+                <h4>功能介绍</h4>
+                <p>PDF知识点提炼工具可以从PDF文档中自动提取重要知识点，帮助您快速掌握文档核心内容。</p>
+                
+                <h4>提取模式说明</h4>
+                <ul>
+                    <li><strong>自动模式</strong>：自动分析文档结构，选择最适合的提取方式</li>
+                    <li><strong>关键词模式</strong>：提取文档中的重要关键词和术语</li>
+                    <li><strong>句子模式</strong>：提取包含重要概念的完整句子</li>
+                    <li><strong>章节模式</strong>：按文档章节结构组织提取的知识点</li>
+                </ul>
+                
+                <h4>重要性阈值</h4>
+                <p>调整重要性阈值可以控制提取知识点的数量和质量：</p>
+                <ul>
+                    <li><strong>较低阈值</strong>（0.1-0.3）：提取更多知识点，包括次要内容</li>
+                    <li><strong>中等阈值</strong>（0.4-0.6）：平衡数量和质量</li>
+                    <li><strong>较高阈值</strong>（0.7-0.9）：仅提取最重要的知识点</li>
+                </ul>
+                
+                <h4>批量处理</h4>
+                <p>如需处理多个PDF文件，请使用<a href="/batch">批量处理</a>功能。</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function updateImportanceValue(val) {
+        document.getElementById('importance-value').textContent = val;
+    }
+</script>
+{% endblock %}
