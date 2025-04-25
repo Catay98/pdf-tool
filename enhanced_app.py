@@ -675,4 +675,150 @@ if uploaded_file is not None:
                     knowledge_points = extract_knowledge_points(text, mode, importance)
                     
                     if not knowledge_points or (mode != "章节模式" and len(knowledge_points) == 0) or \
-                       (mode
+                       (mode == "章节模式" and len(knowledge_points) == 0):
+                        st.warning("未能提取到足够的知识点，正在尝试不同的提取模式...")
+                        # 尝试其他模式
+                        if mode != "句子模式":
+                            knowledge_points = extract_knowledge_points(text, "句子模式", max(0.3, importance - 0.2))
+                        
+                        if not knowledge_points or len(knowledge_points) == 0:
+                            knowledge_points = extract_knowledge_points(text, "关键词模式", 0.3)
+                            
+                        if not knowledge_points or len(knowledge_points) == 0:
+                            st.error("无法从文档中提取有效知识点。可能是文档格式问题或文本内容较少。")
+                            st.stop()
+                    
+                    # 格式化输出
+                    result_content = format_knowledge_points(knowledge_points, mode, output_format)
+                    
+                    # 创建结果区域
+                    st.markdown('<h2 class="sub-header">提取结果</h2>', unsafe_allow_html=True)
+                    
+                    # 显示知识点
+                    if mode == "章节模式":
+                        for section in knowledge_points:
+                            with st.expander(f"{section['heading']}"):
+                                for point in section['points']:
+                                    st.markdown(f'<div class="knowledge-point">{point["text"]}</div>', unsafe_allow_html=True)
+                    else:
+                        # 关键词模式或句子模式
+                        for point in knowledge_points[:20]:  # 最多显示20个知识点
+                            if point['type'] == "keyword":
+                                st.markdown(f'<span class="highlight">{point["text"]}</span> ', unsafe_allow_html=True)
+                            else:
+                                st.markdown(f'<div class="knowledge-point">{point["text"]}</div>', unsafe_allow_html=True)
+                        
+                        if len(knowledge_points) > 20:
+                            st.info(f"共提取了 {len(knowledge_points)} 个知识点，下载文件可查看全部内容。")
+                    
+                    # 下载链接
+                    st.markdown("### 下载结果")
+                    filename = f"{uploaded_file.name.split('.')[0]}_知识点.{'md' if output_format == 'Markdown' else 'txt'}"
+                    download_link = create_downloadable_link(result_content, filename, "点击下载知识点提取结果")
+                    st.markdown(download_link, unsafe_allow_html=True)
+                    
+                    # 统计信息
+                    if mode == "章节模式":
+                        total_points = sum(len(s['points']) for s in knowledge_points)
+                        st.sidebar.success(f"成功提取了 {len(knowledge_points)} 个章节和 {total_points} 个知识点")
+                    else:
+                        st.sidebar.success(f"成功提取了 {len(knowledge_points)} 个知识点")
+                
+                else:
+                    # 文本提取失败
+                    st.error("无法从PDF中提取有效文本。这可能是一个扫描版PDF或受保护的文档。")
+                    
+                    if not use_ocr:
+                        st.info("建议在高级选项中启用OCR功能后重试。")
+                    else:
+                        st.info("OCR处理未能识别文本，可能是图像质量问题。")
+                        
+                    # 显示提取的部分文本（如果有）
+                    if text and show_debug:
+                        st.markdown("#### 提取的部分文本")
+                        st.markdown(f'<div class="debug-info">{text[:1000]}{"..." if len(text) > 1000 else ""}</div>', unsafe_allow_html=True)
+                
+            except Exception as e:
+                st.error(f"处理过程中出错: {str(e)}")
+                st.info("提示：如果是PDF格式问题，请尝试使用其他PDF文件。")
+                import traceback
+                if show_debug:
+                    st.markdown("#### 错误详情")
+                    st.markdown(f'<div class="error-message">{traceback.format_exc()}</div>', unsafe_allow_html=True)
+else:
+    # 未上传文件时显示使用说明
+    st.info("请上传PDF文件以开始提取知识点")
+    
+    with st.expander("使用指南"):
+        st.markdown("""
+        ### 基本使用流程
+        
+        1. 在左侧上传一个PDF文件（支持中英文文档）
+        2. 根据需要调整参数：
+           - **重要性阈值**：控制提取的知识点数量和质量
+           - **提取模式**：选择适合您文档的提取方式
+           - **输出格式**：选择结果的格式化方式
+        3. 在高级选项中：
+           - 对于扫描版PDF，请启用OCR功能
+           - 如需查看详细处理过程，可启用调试信息
+        4. 点击"开始提取知识点"按钮
+        5. 查看提取结果并下载
+        
+        ### 提取模式说明
+        
+        - **自动模式**：系统分析文档结构，选择最合适的提取方式
+        - **关键词模式**：提取文档中的重要术语和关键词
+        - **句子模式**：提取包含重要信息的完整句子
+        - **章节模式**：按文档章节结构组织提取的知识点
+        
+        ### 重要性阈值
+        
+        - **0.1-0.3**：提取更多知识点，包括次要内容
+        - **0.4-0.6**：平衡数量和质量
+        - **0.7-0.9**：仅提取最重要的知识点
+        
+        ### 支持的PDF类型
+        
+        - 文本型PDF（如从Word导出的PDF）
+        - 扫描版PDF（需启用OCR功能）
+        - 混合型PDF（包含文本和图像）
+        
+        ### 常见问题解决
+        
+        - **提取结果不理想**：调整重要性阈值或尝试不同提取模式
+        - **扫描版PDF无法提取**：确保已启用OCR功能
+        - **中文文档提取效果差**：系统已针对中文优化，但复杂格式可能影响效果
+        """)
+
+    with st.expander("使用提示"):
+        st.markdown("""
+        ### 适合处理的文档
+        
+        ✅ 学术论文和研究报告  
+        ✅ 技术文档和使用手册  
+        ✅ 教材和学习资料  
+        ✅ 企业报告和政策文件  
+        ✅ 文章和书籍  
+        
+        ### 不适合处理的文档
+        
+        ❌ 主要由图表组成的文档  
+        ❌ 低质量扫描的文档  
+        ❌ 高度加密或有复杂保护的PDF  
+        ❌ 非中英文文档  
+        
+        ### 提高提取质量的技巧
+        
+        1. 确保PDF文件清晰，文本可选择
+        2. 对于内容丰富的文档，适当降低重要性阈值
+        3. 根据文档结构选择合适的提取模式
+        4. 使用"自动模式"让系统自行判断最佳提取方式
+        """)
+
+# 添加页脚
+st.markdown("""
+---
+<p style="text-align: center; color: gray; font-size: 0.8em;">
+PDF知识点提炼工具 | 版本 2.0 | © 2025
+</p>
+""", unsafe_allow_html=True)
