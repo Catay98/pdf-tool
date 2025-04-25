@@ -3,8 +3,6 @@ import io
 import os
 import re
 import base64
-import tempfile
-from PIL import Image
 import pandas as pd
 from collections import Counter
 import nltk
@@ -35,14 +33,6 @@ try:
 except ImportError:
     os.system(f"{sys.executable} -m pip install pdfplumber")
     import pdfplumber
-
-try:
-    import pytesseract
-    from pdf2image import convert_from_bytes, convert_from_path
-except ImportError:
-    os.system(f"{sys.executable} -m pip install pytesseract pdf2image")
-    import pytesseract
-    from pdf2image import convert_from_bytes, convert_from_path
 
 # 页面配置
 st.set_page_config(
@@ -101,70 +91,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-def get_tessdata_path():
-    """尝试定位tesseract数据目录"""
-    # 检查是否在Streamlit Cloud环境
-    if os.path.exists('/mount/src'):
-        # 尝试下载中文和英文语言数据包
-        os.system("mkdir -p /tmp/tessdata")
-        os.system("curl -L 'https://github.com/tesseract-ocr/tessdata_best/raw/main/chi_sim.traineddata' -o /tmp/tessdata/chi_sim.traineddata")
-        os.system("curl -L 'https://github.com/tesseract-ocr/tessdata_best/raw/main/eng.traineddata' -o /tmp/tessdata/eng.traineddata")
-        return "/tmp/tessdata"
-    return None
-
-def extract_text_with_ocr(pdf_file, pages=None, lang='chi_sim+eng'):
-    """使用OCR从PDF提取文本"""
-    try:
-        # 设置tessdata路径
-        tessdata_path = get_tessdata_path()
-        if tessdata_path:
-            pytesseract.pytesseract.tesseract_cmd = 'tesseract'
-            os.environ['TESSDATA_PREFIX'] = tessdata_path
-            
-        # 创建临时文件
-        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
-            temp_pdf.write(pdf_file.read())
-            temp_pdf_path = temp_pdf.name
-            
-        pdf_file.seek(0)  # 重置文件指针
-        
-        # 转换PDF为图像
-        try:
-            # 首先尝试使用临时文件
-            images = convert_from_path(temp_pdf_path, dpi=300, fmt='ppm', 
-                                     thread_count=4, paths_only=False)
-        except Exception as e:
-            # 如果失败，尝试使用内存中的文件
-            pdf_file.seek(0)
-            images = convert_from_bytes(pdf_file.read(), dpi=300, fmt='ppm', 
-                                      thread_count=4)
-        
-        # 清理临时文件
-        try:
-            os.unlink(temp_pdf_path)
-        except:
-            pass
-        
-        # 提取特定页面或所有页面
-        if pages:
-            selected_images = [images[i-1] for i in pages if 0 < i <= len(images)]
-        else:
-            selected_images = images
-            
-        # 使用OCR提取文本
-        text = ""
-        for i, img in enumerate(selected_images):
-            # 使用pytesseract执行OCR
-            page_text = pytesseract.image_to_string(img, lang=lang)
-            text += f"\n\n--- 第 {i+1} 页 ---\n\n" + page_text
-            
-        return text
-        
-    except Exception as e:
-        st.error(f"OCR处理错误: {str(e)}")
-        return None
-
-def extract_text_from_pdf(pdf_file, use_ocr=False, debug=False):
+def extract_text_from_pdf(pdf_file, debug=False):
     """从PDF文件提取文本，支持多种方法"""
     results = {}
     errors = []
@@ -205,19 +132,6 @@ def extract_text_from_pdf(pdf_file, use_ocr=False, debug=False):
         except Exception as e:
             errors.append(f"pdfplumber错误: {str(e)}")
     
-    # 方法3: 如果前两种方法都失败或选择了OCR，使用OCR
-    if (not text.strip() or use_ocr) and 'pytesseract' in sys.modules:
-        try:
-            pdf_file.seek(0)  # 重置文件指针
-            ocr_text = extract_text_with_ocr(pdf_file)
-            if ocr_text and ocr_text.strip():
-                text = ocr_text
-                results['OCR'] = ocr_text
-            else:
-                errors.append("OCR未能提取任何文本")
-        except Exception as e:
-            errors.append(f"OCR错误: {str(e)}")
-    
     # 如果所有方法都失败
     if not text.strip():
         text = "无法提取文本。这可能是扫描版PDF没有文本层，或文件受到保护。"
@@ -237,16 +151,9 @@ def extract_text_from_pdf(pdf_file, use_ocr=False, debug=False):
         # 替换一些常见的乱码字符
         text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\xff]', '', text)
         
-        # 如果提取的文本是URL或乱码模式，尝试OCR
-        if re.search(r'(https?:\/\/[^\s]+){3,}', text) and 'OCR' not in results and 'pytesseract' in sys.modules:
-            try:
-                pdf_file.seek(0)
-                ocr_text = extract_text_with_ocr(pdf_file)
-                if ocr_text and ocr_text.strip() and len(ocr_text) > len(text):
-                    text = ocr_text
-                    results['OCR'] = ocr_text
-            except Exception as e:
-                errors.append(f"尝试OCR修复错误: {str(e)}")
+        # 如果提取的文本是URL或明显的乱码模式，给出警告
+        if re.search(r'(https?:\/\/[^\s]+){3,}', text):
+            errors.append("警告: 提取的文本可能包含大量URL或乱码，这可能是PDF格式问题")
     
     if debug:
         return text, results, errors
@@ -297,7 +204,8 @@ def score_importance(sentence, keywords=None, stop_words=None, language='auto'):
     
     # 根据语言选择分词方法
     if language == 'chinese':
-        words = list(jieba.cut(sentence)) if 'jieba' in sys.modules else list(sentence)
+        # 简单中文分词（字符级）
+        words = list(sentence)
     else:
         words = word_tokenize(sentence.lower())
     
@@ -333,9 +241,6 @@ def score_importance(sentence, keywords=None, stop_words=None, language='auto'):
     if any(marker in (words if language == 'chinese' else [w.lower() for w in words]) for marker in markers):
         score += 0.1
     
-    # 句子位置特征（如果有上下文信息）
-    # 这里简化处理，实际中可能需要段落级信息
-    
     return min(score, 1.0)  # 确保分数不超过1.0
 
 def extract_keywords(text, top_n=20, language='auto'):
@@ -350,18 +255,12 @@ def extract_keywords(text, top_n=20, language='auto'):
     
     try:
         if language == 'chinese':
-            # 尝试使用jieba提取中文关键词
-            try:
-                import jieba.analyse
-                keywords = jieba.analyse.extract_tags(text, topK=top_n)
-                return keywords
-            except:
-                # 简单按词频提取
-                words = list(text)
-                stop_words = set([
-                    '的', '了', '和', '是', '就', '都', '而', '及', '与', '这', '那', '有', '在',
-                    '中', '为', '对', '也', '以', '于', '上', '下', '之', '由', '等', '被'
-                ])
+            # 简单的中文关键词提取（按字符频率）
+            words = list(text)
+            stop_words = set([
+                '的', '了', '和', '是', '就', '都', '而', '及', '与', '这', '那', '有', '在',
+                '中', '为', '对', '也', '以', '于', '上', '下', '之', '由', '等', '被'
+            ])
         else:
             # 英文关键词提取
             stop_words = set(stopwords.words('english'))
@@ -620,16 +519,14 @@ with st.sidebar:
     
     # 高级选项
     with st.expander("高级选项"):
-        use_ocr = st.checkbox("启用OCR（对扫描版PDF）", value=True, 
-                            help="对于扫描版PDF或无法直接提取文本的PDF使用光学字符识别")
-        
         show_debug = st.checkbox("显示调试信息", value=False,
                                help="显示原始提取文本和处理过程")
     
     st.divider()
     
     st.write("**关于本工具**")
-    st.write("本工具帮助您从PDF文档中提取重要知识点，支持文本PDF和扫描版PDF。")
+    st.write("本工具帮助您从PDF文档中提取重要知识点，适用于文本型PDF。")
+    st.info("注意：扫描版PDF可能无法正常提取文本。")
     st.write("提取的知识点按重要性排序，可帮助您快速掌握文档核心内容。")
 
 # 上传PDF文件
@@ -649,9 +546,9 @@ if uploaded_file is not None:
             try:
                 # 提取文本
                 if show_debug:
-                    text, results, errors = extract_text_from_pdf(uploaded_file, use_ocr=use_ocr, debug=True)
+                    text, results, errors = extract_text_from_pdf(uploaded_file, debug=True)
                 else:
-                    text = extract_text_from_pdf(uploaded_file, use_ocr=use_ocr)
+                    text = extract_text_from_pdf(uploaded_file)
                 
                 # 调试信息
                 if show_debug:
@@ -727,12 +624,8 @@ if uploaded_file is not None:
                 else:
                     # 文本提取失败
                     st.error("无法从PDF中提取有效文本。这可能是一个扫描版PDF或受保护的文档。")
+                    st.info("目前版本不支持扫描版PDF的处理。请尝试使用文本型PDF文件。")
                     
-                    if not use_ocr:
-                        st.info("建议在高级选项中启用OCR功能后重试。")
-                    else:
-                        st.info("OCR处理未能识别文本，可能是图像质量问题。")
-                        
                     # 显示提取的部分文本（如果有）
                     if text and show_debug:
                         st.markdown("#### 提取的部分文本")
@@ -758,9 +651,7 @@ else:
            - **重要性阈值**：控制提取的知识点数量和质量
            - **提取模式**：选择适合您文档的提取方式
            - **输出格式**：选择结果的格式化方式
-        3. 在高级选项中：
-           - 对于扫描版PDF，请启用OCR功能
-           - 如需查看详细处理过程，可启用调试信息
+        3. 在高级选项中，可以启用调试信息查看详细处理过程
         4. 点击"开始提取知识点"按钮
         5. 查看提取结果并下载
         
@@ -780,13 +671,13 @@ else:
         ### 支持的PDF类型
         
         - 文本型PDF（如从Word导出的PDF）
-        - 扫描版PDF（需启用OCR功能）
-        - 混合型PDF（包含文本和图像）
+        - 包含可选择文本的PDF
+        - 注意：当前版本不支持扫描版PDF
         
         ### 常见问题解决
         
         - **提取结果不理想**：调整重要性阈值或尝试不同提取模式
-        - **扫描版PDF无法提取**：确保已启用OCR功能
+        - **无法提取文本**：确保PDF包含可选择的文本，不是扫描版
         - **中文文档提取效果差**：系统已针对中文优化，但复杂格式可能影响效果
         """)
 
@@ -798,14 +689,14 @@ else:
         ✅ 技术文档和使用手册  
         ✅ 教材和学习资料  
         ✅ 企业报告和政策文件  
-        ✅ 文章和书籍  
+        ✅ 电子书和文章（文本型）  
         
         ### 不适合处理的文档
         
+        ❌ 扫描版PDF（无文本层）  
         ❌ 主要由图表组成的文档  
-        ❌ 低质量扫描的文档  
-        ❌ 高度加密或有复杂保护的PDF  
-        ❌ 非中英文文档  
+        ❌ 密码保护或加密PDF  
+        ❌ 格式非常复杂的PDF  
         
         ### 提高提取质量的技巧
         
@@ -819,6 +710,6 @@ else:
 st.markdown("""
 ---
 <p style="text-align: center; color: gray; font-size: 0.8em;">
-PDF知识点提炼工具 | 版本 2.0 | © 2025
+PDF知识点提炼工具 | 版本 1.0 | © 2025
 </p>
 """, unsafe_allow_html=True)
