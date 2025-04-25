@@ -36,7 +36,7 @@ except ImportError:
 
 # 页面配置
 st.set_page_config(
-    page_title="PDF知识点提炼工具",
+    page_title="PDF多功能工具",
     page_icon="📚",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -87,6 +87,16 @@ st.markdown("""
         padding: 10px;
         border-radius: 4px;
         margin: 10px 0;
+    }
+    .feature-option {
+        padding: 10px;
+        border-radius: 5px;
+        background-color: #f5f5f5;
+        margin: 5px 0;
+        cursor: pointer;
+    }
+    .feature-option:hover {
+        background-color: #e0e0e0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -488,228 +498,521 @@ def format_knowledge_points(knowledge_points, mode, output_format):
     
     return content
 
-# 主界面
-st.markdown('<h1 class="main-header">PDF知识点提炼工具</h1>', unsafe_allow_html=True)
-st.markdown('上传PDF文件，自动提取重要知识点，帮助您快速掌握文档内容。')
-
-# 侧边栏参数设置
-with st.sidebar:
-    st.header("参数设置")
+def show_pdf_extractor():
+    """显示PDF知识点提炼界面"""
+    st.markdown('<h1 class="main-header">PDF知识点提炼工具</h1>', unsafe_allow_html=True)
+    st.markdown('上传PDF文件，自动提取重要知识点，帮助您快速掌握文档内容。')
     
-    importance = st.slider(
-        "重要性阈值", 
-        min_value=0.1, 
-        max_value=0.9, 
-        value=0.5, 
-        step=0.1,
-        help="调整该值控制提取知识点的数量。值越大，提取的知识点越少但更重要。"
-    )
+    # 侧边栏参数设置
+    with st.sidebar:
+        st.header("参数设置")
+        
+        importance = st.slider(
+            "重要性阈值", 
+            min_value=0.1, 
+            max_value=0.9, 
+            value=0.5, 
+            step=0.1,
+            help="调整该值控制提取知识点的数量。值越大，提取的知识点越少但更重要。"
+        )
+        
+        mode = st.selectbox(
+            "提取模式",
+            ["自动模式", "关键词模式", "句子模式", "章节模式"],
+            help="自动模式：分析文档结构选择最佳提取方式\n关键词模式：提取重要术语和关键词\n句子模式：提取重要句子\n章节模式：按章节组织提取"
+        )
+        
+        output_format = st.selectbox(
+            "输出格式",
+            ["Markdown", "纯文本"],
+            help="Markdown：格式化文本，支持层次结构\n纯文本：简单文本格式"
+        )
+        
+        # 高级选项
+        with st.expander("高级选项"):
+            show_debug = st.checkbox("显示调试信息", value=False,
+                                   help="显示原始提取文本和处理过程")
+        
+        st.divider()
+        
+        st.write("**关于本工具**")
+        st.write("本工具帮助您从PDF文档中提取重要知识点，适用于文本型PDF。")
+        st.info("注意：扫描版PDF可能无法正常提取文本。")
+        st.write("提取的知识点按重要性排序，可帮助您快速掌握文档核心内容。")
     
-    mode = st.selectbox(
-        "提取模式",
-        ["自动模式", "关键词模式", "句子模式", "章节模式"],
-        help="自动模式：分析文档结构选择最佳提取方式\n关键词模式：提取重要术语和关键词\n句子模式：提取重要句子\n章节模式：按章节组织提取"
-    )
+    # 上传PDF文件
+    uploaded_file = st.file_uploader("选择PDF文件", type="pdf")
     
-    output_format = st.selectbox(
-        "输出格式",
-        ["Markdown", "纯文本"],
-        help="Markdown：格式化文本，支持层次结构\n纯文本：简单文本格式"
-    )
-    
-    # 高级选项
-    with st.expander("高级选项"):
-        show_debug = st.checkbox("显示调试信息", value=False,
-                               help="显示原始提取文本和处理过程")
-    
-    st.divider()
-    
-    st.write("**关于本工具**")
-    st.write("本工具帮助您从PDF文档中提取重要知识点，适用于文本型PDF。")
-    st.info("注意：扫描版PDF可能无法正常提取文本。")
-    st.write("提取的知识点按重要性排序，可帮助您快速掌握文档核心内容。")
-
-# 上传PDF文件
-uploaded_file = st.file_uploader("选择PDF文件", type="pdf")
-
-if uploaded_file is not None:
-    # 显示文件信息
-    file_details = {
-        "文件名": uploaded_file.name,
-        "文件大小": f"{uploaded_file.size / 1024:.1f} KB"
-    }
-    st.write(file_details)
-    
-    # 处理按钮
-    if st.button("开始提取知识点"):
-        with st.spinner("正在处理中，请稍候..."):
-            try:
-                # 提取文本
-                if show_debug:
-                    text, results, errors = extract_text_from_pdf(uploaded_file, debug=True)
-                else:
-                    text = extract_text_from_pdf(uploaded_file)
-                
-                # 调试信息
-                if show_debug:
-                    st.subheader("调试信息")
-                    st.markdown("#### 提取方法")
-                    for method, result in results.items():
-                        with st.expander(f"{method} 提取结果"):
-                            st.markdown(f'<div class="debug-info">{result[:2000]}{"..." if len(result) > 2000 else ""}</div>', unsafe_allow_html=True)
+    if uploaded_file is not None:
+        # 显示文件信息
+        file_details = {
+            "文件名": uploaded_file.name,
+            "文件大小": f"{uploaded_file.size / 1024:.1f} KB"
+        }
+        st.write(file_details)
+        
+        # 处理按钮
+        if st.button("开始提取知识点"):
+            with st.spinner("正在处理中，请稍候..."):
+                try:
+                    # 提取文本
+                    if show_debug:
+                        text, results, errors = extract_text_from_pdf(uploaded_file, debug=True)
+                    else:
+                        text = extract_text_from_pdf(uploaded_file)
                     
-                    if errors:
-                        st.markdown("#### 错误信息")
-                        for error in errors:
-                            st.markdown(f'<div class="error-message">{error}</div>', unsafe_allow_html=True)
-                    
-                    st.markdown("#### 原始提取文本")
-                    st.markdown(f'<div class="debug-info">{text[:3000]}{"..." if len(text) > 3000 else ""}</div>', unsafe_allow_html=True)
-                
-                # 如果文本提取成功
-                if text and not text.startswith("无法提取文本"):
-                    # 提取知识点
-                    knowledge_points = extract_knowledge_points(text, mode, importance)
-                    
-                    if not knowledge_points or (mode != "章节模式" and len(knowledge_points) == 0) or \
-                       (mode == "章节模式" and len(knowledge_points) == 0):
-                        st.warning("未能提取到足够的知识点，正在尝试不同的提取模式...")
-                        # 尝试其他模式
-                        if mode != "句子模式":
-                            knowledge_points = extract_knowledge_points(text, "句子模式", max(0.3, importance - 0.2))
+                    # 调试信息
+                    if show_debug:
+                        st.subheader("调试信息")
+                        st.markdown("#### 提取方法")
+                        for method, result in results.items():
+                            with st.expander(f"{method} 提取结果"):
+                                st.markdown(f'<div class="debug-info">{result[:2000]}{"..." if len(result) > 2000 else ""}</div>', unsafe_allow_html=True)
                         
-                        if not knowledge_points or len(knowledge_points) == 0:
-                            knowledge_points = extract_knowledge_points(text, "关键词模式", 0.3)
+                        if errors:
+                            st.markdown("#### 错误信息")
+                            for error in errors:
+                                st.markdown(f'<div class="error-message">{error}</div>', unsafe_allow_html=True)
+                        
+                        st.markdown("#### 原始提取文本")
+                        st.markdown(f'<div class="debug-info">{text[:3000]}{"..." if len(text) > 3000 else ""}</div>', unsafe_allow_html=True)
+                    
+                    # 如果文本提取成功
+                    if text and not text.startswith("无法提取文本"):
+                        # 提取知识点
+                        knowledge_points = extract_knowledge_points(text, mode, importance)
+                        
+                        if not knowledge_points or (mode != "章节模式" and len(knowledge_points) == 0) or \
+                           (mode == "章节模式" and len(knowledge_points) == 0):
+                            st.warning("未能提取到足够的知识点，正在尝试不同的提取模式...")
+                            # 尝试其他模式
+                            if mode != "句子模式":
+                                knowledge_points = extract_knowledge_points(text, "句子模式", max(0.3, importance - 0.2))
                             
-                        if not knowledge_points or len(knowledge_points) == 0:
-                            st.error("无法从文档中提取有效知识点。可能是文档格式问题或文本内容较少。")
-                            st.stop()
-                    
-                    # 格式化输出
-                    result_content = format_knowledge_points(knowledge_points, mode, output_format)
-                    
-                    # 创建结果区域
-                    st.markdown('<h2 class="sub-header">提取结果</h2>', unsafe_allow_html=True)
-                    
-                    # 显示知识点
-                    if mode == "章节模式":
-                        for section in knowledge_points:
-                            with st.expander(f"{section['heading']}"):
-                                for point in section['points']:
-                                    st.markdown(f'<div class="knowledge-point">{point["text"]}</div>', unsafe_allow_html=True)
-                    else:
-                        # 关键词模式或句子模式
-                        for point in knowledge_points[:20]:  # 最多显示20个知识点
-                            if point['type'] == "keyword":
-                                st.markdown(f'<span class="highlight">{point["text"]}</span> ', unsafe_allow_html=True)
-                            else:
-                                st.markdown(f'<div class="knowledge-point">{point["text"]}</div>', unsafe_allow_html=True)
+                            if not knowledge_points or len(knowledge_points) == 0:
+                                knowledge_points = extract_knowledge_points(text, "关键词模式", 0.3)
+                                
+                            if not knowledge_points or len(knowledge_points) == 0:
+                                st.error("无法从文档中提取有效知识点。可能是文档格式问题或文本内容较少。")
+                                st.stop()
                         
-                        if len(knowledge_points) > 20:
-                            st.info(f"共提取了 {len(knowledge_points)} 个知识点，下载文件可查看全部内容。")
+                        # 格式化输出
+                        result_content = format_knowledge_points(knowledge_points, mode, output_format)
+                        
+                        # 创建结果区域
+                        st.markdown('<h2 class="sub-header">提取结果</h2>', unsafe_allow_html=True)
+                        
+                        # 显示知识点
+                        if mode == "章节模式":
+                            for section in knowledge_points:
+                                with st.expander(f"{section['heading']}"):
+                                    for point in section['points']:
+                                        st.markdown(f'<div class="knowledge-point">{point["text"]}</div>', unsafe_allow_html=True)
+                        else:
+                            # 关键词模式或句子模式
+                            for point in knowledge_points[:20]:  # 最多显示20个知识点
+                                if point['type'] == "keyword":
+                                    st.markdown(f'<span class="highlight">{point["text"]}</span> ', unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f'<div class="knowledge-point">{point["text"]}</div>', unsafe_allow_html=True)
+                            
+                            if len(knowledge_points) > 20:
+                                st.info(f"共提取了 {len(knowledge_points)} 个知识点，下载文件可查看全部内容。")
+                        
+                        # 下载链接
+                        st.markdown("### 下载结果")
+                        filename = f"{uploaded_file.name.split('.')[0]}_知识点.{'md' if output_format == 'Markdown' else 'txt'}"
+                        download_link = create_downloadable_link(result_content, filename, "点击下载知识点提取结果")
+                        st.markdown(download_link, unsafe_allow_html=True)
+                        
+                        # 统计信息
+                        if mode == "章节模式":
+                            total_points = sum(len(s['points']) for s in knowledge_points)
+                            st.sidebar.success(f"成功提取了 {len(knowledge_points)} 个章节和 {total_points} 个知识点")
+                        else:
+                            st.sidebar.success(f"成功提取了 {len(knowledge_points)} 个知识点")
                     
-                    # 下载链接
-                    st.markdown("### 下载结果")
-                    filename = f"{uploaded_file.name.split('.')[0]}_知识点.{'md' if output_format == 'Markdown' else 'txt'}"
-                    download_link = create_downloadable_link(result_content, filename, "点击下载知识点提取结果")
-                    st.markdown(download_link, unsafe_allow_html=True)
-                    
-                    # 统计信息
-                    if mode == "章节模式":
-                        total_points = sum(len(s['points']) for s in knowledge_points)
-                        st.sidebar.success(f"成功提取了 {len(knowledge_points)} 个章节和 {total_points} 个知识点")
                     else:
-                        st.sidebar.success(f"成功提取了 {len(knowledge_points)} 个知识点")
-                
-                else:
-                    # 文本提取失败
-                    st.error("无法从PDF中提取有效文本。这可能是一个扫描版PDF或受保护的文档。")
-                    st.info("目前版本不支持扫描版PDF的处理。请尝试使用文本型PDF文件。")
+                        # 文本提取失败
+                        st.error("无法从PDF中提取有效文本。这可能是一个扫描版PDF或受保护的文档。")
+                        st.info("目前版本不支持扫描版PDF的处理。请尝试使用文本型PDF文件。")
+                        
+                        # 显示提取的部分文本（如果有）
+                        if text and show_debug:
+                            st.markdown("#### 提取的部分文本")
+                            st.markdown(f'<div class="debug-info">{text[:1000]}{"..." if len(text) > 1000 else ""}</div>', unsafe_allow_html=True)
                     
-                    # 显示提取的部分文本（如果有）
-                    if text and show_debug:
-                        st.markdown("#### 提取的部分文本")
-                        st.markdown(f'<div class="debug-info">{text[:1000]}{"..." if len(text) > 1000 else ""}</div>', unsafe_allow_html=True)
-                
-            except Exception as e:
-                st.error(f"处理过程中出错: {str(e)}")
-                st.info("提示：如果是PDF格式问题，请尝试使用其他PDF文件。")
-                import traceback
-                if show_debug:
-                    st.markdown("#### 错误详情")
-                    st.markdown(f'<div class="error-message">{traceback.format_exc()}</div>', unsafe_allow_html=True)
-else:
-    # 未上传文件时显示使用说明
-    st.info("请上传PDF文件以开始提取知识点")
+                except Exception as e:
+                    st.error(f"处理过程中出错: {str(e)}")
+                    st.info("提示：如果是PDF格式问题，请尝试使用其他PDF文件。")
+                    import traceback
+                    if show_debug:
+                        st.markdown("#### 错误详情")
+                        st.markdown(f'<div class="error-message">{traceback.format_exc()}</div>', unsafe_allow_html=True)
+    else:
+        # 未上传文件时显示使用说明
+        st.info("请上传PDF文件以开始提取知识点")
+        
+        with st.expander("使用指南"):
+            st.markdown("""
+            ### 基本使用流程
+            
+           ### 基本使用流程
+            
+            1. 在左侧上传一个PDF文件（支持中英文文档）
+            2. 根据需要调整参数：
+               - **重要性阈值**：控制提取的知识点数量和质量
+               - **提取模式**：选择适合您文档的提取方式
+               - **输出格式**：选择结果的格式化方式
+            3. 在高级选项中，可以启用调试信息查看详细处理过程
+            4. 点击"开始提取知识点"按钮
+            5. 查看提取结果并下载
+            
+            ### 提取模式说明
+            
+            - **自动模式**：系统分析文档结构，选择最合适的提取方式
+            - **关键词模式**：提取文档中的重要术语和关键词
+            - **句子模式**：提取包含重要信息的完整句子
+            - **章节模式**：按文档章节结构组织提取的知识点
+            
+            ### 重要性阈值
+            
+            - **0.1-0.3**：提取更多知识点，包括次要内容
+            - **0.4-0.6**：平衡数量和质量
+            - **0.7-0.9**：仅提取最重要的知识点
+            
+            ### 支持的PDF类型
+            
+            - 文本型PDF（如从Word导出的PDF）
+            - 包含可选择文本的PDF
+            - 注意：当前版本不支持扫描版PDF
+            """)
+
+        with st.expander("使用提示"):
+            st.markdown("""
+            ### 适合处理的文档
+            
+            ✅ 学术论文和研究报告  
+            ✅ 技术文档和使用手册  
+            ✅ 教材和学习资料  
+            ✅ 企业报告和政策文件  
+            ✅ 电子书和文章（文本型）  
+            
+            ### 不适合处理的文档
+            
+            ❌ 扫描版PDF（无文本层）  
+            ❌ 主要由图表组成的文档  
+            ❌ 密码保护或加密PDF  
+            ❌ 格式非常复杂的PDF  
+            
+            ### 提高提取质量的技巧
+            
+            1. 确保PDF文件清晰，文本可选择
+            2. 对于内容丰富的文档，适当降低重要性阈值
+            3. 根据文档结构选择合适的提取模式
+            4. 使用"自动模式"让系统自行判断最佳提取方式
+            """)
+
+def show_ppt_generator():
+    """显示PPT生成器界面"""
+    st.markdown('<h1 class="main-header">PDF生成PPT工具</h1>', unsafe_allow_html=True)
+    st.markdown('上传PDF文件，自动转换为PPT演示文稿。')
     
-    with st.expander("使用指南"):
+    st.info("该功能将使用PDF提取的知识点自动创建PowerPoint演示文稿。")
+    
+    # 侧边栏参数
+    with st.sidebar:
+        st.header("PPT设置")
+        
+        ppt_theme = st.selectbox(
+            "PPT主题",
+            ["简约蓝", "商务灰", "学术绿", "鲜明红", "暗黑模式"],
+            help="选择PPT的视觉主题"
+        )
+        
+        slide_density = st.slider(
+            "幻灯片内容密度", 
+            min_value=1, 
+            max_value=5, 
+            value=3,
+            help="1=每张幻灯片内容较少，5=每张幻灯片内容较多"
+        )
+        
+        include_toc = st.checkbox("包含目录页", value=True)
+        include_cover = st.checkbox("包含封面", value=True)
+        
+    # 上传PDF文件
+    uploaded_file = st.file_uploader("选择PDF文件", type="pdf")
+    
+    if uploaded_file is not None:
+        file_details = {
+            "文件名": uploaded_file.name,
+            "文件大小": f"{uploaded_file.size / 1024:.1f} KB"
+        }
+        st.write(file_details)
+        
+        # 封面设置（可选）
+        if include_cover:
+            with st.expander("封面设置"):
+                title = st.text_input("演示标题", value=uploaded_file.name.split('.')[0])
+                subtitle = st.text_input("演示副标题", value="自动生成的演示文稿")
+                author = st.text_input("作者", value="")
+                date = st.date_input("日期")
+        
+        # 处理按钮
+        if st.button("开始生成PPT"):
+            with st.spinner("正在处理中，请稍候..."):
+                try:
+                    # 首先提取文本和知识点
+                    text = extract_text_from_pdf(uploaded_file)
+                    
+                    if text and not text.startswith("无法提取文本"):
+                        # 提取知识点（使用章节模式以获得更好的结构）
+                        knowledge_points = extract_knowledge_points(text, "章节模式", 0.4)
+                        
+                        # 如果没有找到章节，尝试句子模式
+                        if not knowledge_points or len(knowledge_points) == 0:
+                            knowledge_points = extract_knowledge_points(text, "句子模式", 0.4)
+                        
+                        # 显示成功消息
+                        st.success("已成功分析文档内容！")
+                        
+                        # 在实际应用中，这里会调用PPT生成模块
+                        # 由于我们尚未集成实际的PPT生成功能，显示一个模拟界面
+                        st.markdown("### 生成的PPT预览")
+                        
+                        # 模拟PPT预览
+                        cols = st.columns(3)
+                        with cols[0]:
+                            st.markdown("""
+                            <div style="border:1px solid #ddd; padding:10px; text-align:center;">
+                                <h4>封面</h4>
+                                <p>演示标题</p>
+                                <p>副标题</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        with cols[1]:
+                            st.markdown("""
+                            <div style="border:1px solid #ddd; padding:10px; text-align:center;">
+                                <h4>目录</h4>
+                                <p>主要章节1</p>
+                                <p>主要章节2</p>
+                                <p>...</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        with cols[2]:
+                            st.markdown("""
+                            <div style="border:1px solid #ddd; padding:10px; text-align:center;">
+                                <h4>内容页</h4>
+                                <p>主要知识点</p>
+                                <p>支持要点</p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        
+                        # 下载按钮（模拟）
+                        st.info("提示：PPT生成功能仍在开发中，目前仅提供预览。")
+                        if st.button("模拟下载PPT"):
+                            st.success("在真实应用中，这里会提供一个PPT文件下载链接。")
+                    else:
+                        st.error("无法从PDF中提取有效文本。请尝试使用文本型PDF文件。")
+                    
+                except Exception as e:
+                    st.error(f"处理过程中出错: {str(e)}")
+                    st.info("提示：如果是PDF格式问题，请尝试使用其他PDF文件。")
+    else:
+        st.info("请上传PDF文件以生成PPT")
+        
+        with st.expander("功能说明"):
+            st.markdown("""
+            ### PDF转PPT功能
+            
+            本功能会自动分析您的PDF文档内容，提取重要知识点，并生成结构化的PPT演示文稿。
+            
+            **主要功能**：
+            - 自动提取文档结构和内容
+            - 根据文档结构创建幻灯片
+            - 支持自定义PPT主题和风格
+            - 可调整内容密度和展示方式
+            
+            **使用建议**：
+            - 上传结构清晰的文本型PDF
+            - 为获得最佳效果，选择包含清晰标题和小标题的文档
+            - 调整内容密度以控制每张幻灯片的信息量
+            """)
+
+def show_animation_generator():
+    """显示动画生成器界面"""
+    st.markdown('<h1 class="main-header">知识点动画生成工具</h1>', unsafe_allow_html=True)
+    st.markdown('上传PDF文件或输入文本，生成知识点讲解动画。')
+    
+    st.info("该功能可将PDF文档或文本内容转换为生动的动画讲解视频。")
+    
+    # 侧边栏参数
+    with st.sidebar:
+        st.header("动画设置")
+        
+        animation_style = st.selectbox(
+            "动画风格",
+            ["简约教学", "生动活泼", "专业商务", "科技感"],
+            help="选择动画的视觉风格"
+        )
+        
+        voice_type = st.selectbox(
+            "配音风格",
+            ["成熟男声", "亲和女声", "活力青年", "无配音"],
+            help="选择讲解音频的配音类型"
+        )
+        
+        animation_length = st.slider(
+            "动画时长目标(分钟)", 
+            min_value=1,
+            max_value=10, 
+            value=3,
+            help="设置生成的动画大致时长"
+        )
+        
+        include_background_music = st.checkbox("添加背景音乐", value=True)
+    
+    # 内容输入选项
+    input_method = st.radio("选择输入方式", ["上传PDF", "直接输入文本"])
+    
+    if input_method == "上传PDF":
+        uploaded_file = st.file_uploader("选择PDF文件", type="pdf")
+        
+        if uploaded_file is not None:
+            file_details = {
+                "文件名": uploaded_file.name,
+                "文件大小": f"{uploaded_file.size / 1024:.1f} KB"
+            }
+            st.write(file_details)
+            
+            # 处理按钮
+            if st.button("开始生成动画"):
+                with st.spinner("正在处理中，请稍候..."):
+                    try:
+                        # 首先提取文本和知识点
+                        text = extract_text_from_pdf(uploaded_file)
+                        
+                        if text and not text.startswith("无法提取文本"):
+                            # 提取知识点
+                            knowledge_points = extract_knowledge_points(text, "句子模式", 0.4)
+                            
+                            # 显示成功消息
+                            st.success("已成功分析文档内容！")
+                            
+                            # 在实际应用中，这里会调用动画生成模块
+                            # 由于我们尚未集成实际的动画生成功能，显示一个模拟界面
+                            st.markdown("### 动画生成预览")
+                            
+                            # 模拟动画预览
+                            st.markdown("""
+                            <div style="background:#f0f0f0; padding:20px; border-radius:5px; text-align:center;">
+                                <h4>动画预览区域</h4>
+                                <p style="color:#555;">实际应用中，这里会显示动画预览或生成进度</p>
+                                <div style="background:#ddd; height:240px; display:flex; align-items:center; justify-content:center;">
+                                    <p>动画预览画面</p>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                            # 下载按钮（模拟）
+                            st.info("提示：动画生成功能仍在开发中，目前仅提供界面预览。")
+                            if st.button("模拟下载动画"):
+                                st.success("在真实应用中，这里会提供一个视频文件下载链接。")
+                        else:
+                            st.error("无法从PDF中提取有效文本。请尝试使用文本型PDF文件。")
+                        
+                    except Exception as e:
+                        st.error(f"处理过程中出错: {str(e)}")
+                        st.info("提示：如果是PDF格式问题，请尝试使用其他PDF文件。")
+        else:
+            st.info("请上传PDF文件以生成动画")
+    
+    else:  # 直接输入文本
+        input_text = st.text_area("输入要转换为动画的文本内容", height=200)
+        
+        if st.button("开始生成动画") and input_text:
+            with st.spinner("正在处理中，请稍候..."):
+                try:
+                    # 使用文本进行知识点提取
+                    if len(input_text.strip()) > 10:
+                        # 提取知识点
+                        knowledge_points = extract_knowledge_points(input_text, "句子模式", 0.4)
+                        
+                        # 显示成功消息
+                        st.success("已成功分析文本内容！")
+                        
+                        # 显示模拟界面（与PDF部分相同）
+                        st.markdown("### 动画生成预览")
+                        
+                        # 模拟动画预览
+                        st.markdown("""
+                        <div style="background:#f0f0f0; padding:20px; border-radius:5px; text-align:center;">
+                            <h4>动画预览区域</h4>
+                            <p style="color:#555;">实际应用中，这里会显示动画预览或生成进度</p>
+                            <div style="background:#ddd; height:240px; display:flex; align-items:center; justify-content:center;">
+                                <p>动画预览画面</p>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # 下载按钮（模拟）
+                        st.info("提示：动画生成功能仍在开发中，目前仅提供界面预览。")
+                        if st.button("模拟下载动画"):
+                            st.success("在真实应用中，这里会提供一个视频文件下载链接。")
+                    else:
+                        st.error("输入文本太短，无法生成有意义的动画。")
+                
+                except Exception as e:
+                    st.error(f"处理过程中出错: {str(e)}")
+        
+    with st.expander("功能说明"):
         st.markdown("""
-        ### 基本使用流程
+        ### 知识点动画生成功能
         
-        1. 在左侧上传一个PDF文件（支持中英文文档）
-        2. 根据需要调整参数：
-           - **重要性阈值**：控制提取的知识点数量和质量
-           - **提取模式**：选择适合您文档的提取方式
-           - **输出格式**：选择结果的格式化方式
-        3. 在高级选项中，可以启用调试信息查看详细处理过程
-        4. 点击"开始提取知识点"按钮
-        5. 查看提取结果并下载
+        本功能可以将PDF文档或文本转换为生动的知识点讲解动画。
         
-        ### 提取模式说明
+        **主要功能**：
+        - 自动提取文档中的关键知识点
+        - 将知识点转换为动画形式的讲解内容
+        - 支持自定义动画风格和配音
+        - 可选添加背景音乐
         
-        - **自动模式**：系统分析文档结构，选择最合适的提取方式
-        - **关键词模式**：提取文档中的重要术语和关键词
-        - **句子模式**：提取包含重要信息的完整句子
-        - **章节模式**：按文档章节结构组织提取的知识点
-        
-        ### 重要性阈值
-        
-        - **0.1-0.3**：提取更多知识点，包括次要内容
-        - **0.4-0.6**：平衡数量和质量
-        - **0.7-0.9**：仅提取最重要的知识点
-        
-        ### 支持的PDF类型
-        
-        - 文本型PDF（如从Word导出的PDF）
-        - 包含可选择文本的PDF
-        - 注意：当前版本不支持扫描版PDF
-        
-        ### 常见问题解决
-        
-        - **提取结果不理想**：调整重要性阈值或尝试不同提取模式
-        - **无法提取文本**：确保PDF包含可选择的文本，不是扫描版
-        - **中文文档提取效果差**：系统已针对中文优化，但复杂格式可能影响效果
+        **使用建议**：
+        - 上传内容清晰的文本型PDF或直接输入文本
+        - 内容最好以知识点讲解类型为主
+        - 为获得最佳效果，控制输入内容的长度和复杂度
         """)
 
-    with st.expander("使用提示"):
-        st.markdown("""
-        ### 适合处理的文档
-        
-        ✅ 学术论文和研究报告  
-        ✅ 技术文档和使用手册  
-        ✅ 教材和学习资料  
-        ✅ 企业报告和政策文件  
-        ✅ 电子书和文章（文本型）  
-        
-        ### 不适合处理的文档
-        
-        ❌ 扫描版PDF（无文本层）  
-        ❌ 主要由图表组成的文档  
-        ❌ 密码保护或加密PDF  
-        ❌ 格式非常复杂的PDF  
-        
-        ### 提高提取质量的技巧
-        
-        1. 确保PDF文件清晰，文本可选择
-        2. 对于内容丰富的文档，适当降低重要性阈值
-        3. 根据文档结构选择合适的提取模式
-        4. 使用"自动模式"让系统自行判断最佳提取方式
-        """)
+# 主函数
+def main():
+    # 在侧边栏添加功能选择
+    with st.sidebar:
+        st.title("PDF多功能工具")
+        app_mode = st.radio(
+            "选择功能",
+            ["PDF知识点提炼", "生成PPT", "生成动画"],
+            help="选择您想要使用的功能"
+        )
+        st.divider()
+    
+    # 根据选择加载不同功能
+    if app_mode == "PDF知识点提炼":
+        show_pdf_extractor()
+    elif app_mode == "生成PPT":
+        show_ppt_generator()
+    elif app_mode == "生成动画":
+        show_animation_generator()
 
-# 添加页脚
-st.markdown("""
----
-<p style="text-align: center; color: gray; font-size: 0.8em;">
-PDF知识点提炼工具 | 版本 1.0 | © 2025
-</p>
-""", unsafe_allow_html=True)
+    # 添加页脚
+    st.markdown("""
+    ---
+    <p style="text-align: center; color: gray; font-size: 0.8em;">
+    PDF多功能工具 | 版本 1.0 | © 2025
+    </p>
+    """, unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
